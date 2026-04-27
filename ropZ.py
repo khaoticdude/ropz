@@ -26,10 +26,11 @@ fname = sys.argv[1] # File which contains rp++ output
 outname = sys.argv[2] # File which will contain the new output
 seperator = " | " # Used when outputting gadgets
 max_retn = 0x10 # Highest value for a retn
-ignore_ebp = True # Don't allow gadgets which mess up ebp
+ignore_ebp = False # Don't allow gadgets which mess up ebp
 
 cfg = {
     "(Clean) Deref": r"^mov e.., dword \[e..\] ; ret",
+    "(Dirty) Deref": r"^mov e.., dword \[e..\]",
     "(Clean) Swap": r"^xchg e.., e.. ; ret",
     "(Clean) Move": r"^mov e.., e.. ; ret",
     "(Clean) Add": r"^add e.., e.. ; ret",
@@ -38,9 +39,10 @@ cfg = {
     "(Clean) Neg": r"^neg e.. ; ret",
     "(Clean) Inc": r"^inc e.. ; ret",
     "(Clean) Dec": r"^dec e.. ; ret",
-    # "(Clean) Ret": r"^ret  ;",
+    "(Clean) Ret": r"^ret  ;",
     "(Clean) Write": r"^mov dword \[e..\], e.. ; ret",
-    "Get ESP": r"push esp.*pop e.*ret"
+    "(Dirty) Write": r"^(xchg e.., dword \[e..\]|xchg dword \[e..\], e..)",
+    "Get ESP": r"(push esp.*pop e.*ret|^mov e.., esp)"
 }
 
 # ===== LOAD RP++ OUTPUT
@@ -52,15 +54,19 @@ all = []
 # rp++ outputs a file in utf-16-le mode for some
 # reason, so specifying the encoding mode is
 # necessary here
-with open(fname, 'r', encoding='utf-16-le') as f:
-    for line in f:
-        # Check for a ';', so that we can skip
-        # over the first text lines
-        if ';' in line:
-            line = line.strip()
-            addr = line[0:10]
-            asm = " ".join(line.split(" ")[1:-3])
-            all.append((addr, asm))
+try:
+    with open(fname, 'r', encoding='utf-8') as f:
+        for line in f:
+            # Check for a ';', so that we can skip
+            # over the first text lines
+            if ';' in line:
+                line = line.strip()
+                addr = line[0:10]
+                asm = " ".join(line.split(" ")[1:-3])
+                all.append((addr, asm))
+except UnicodeDecodeError:
+    print("[-] File is not 'utf-8' encoded")
+    exit(-1)
 
 print("[+] Loaded %d gadgets..." % len(all))
 
